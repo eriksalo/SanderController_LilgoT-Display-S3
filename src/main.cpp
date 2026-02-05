@@ -70,14 +70,20 @@ TFT_eSPI tft = TFT_eSPI();
 Button btnUp   { BTN_UP };
 Button btnDown { BTN_DOWN };
 
-bool motorOn      = false;
-int  speedLevel   = SPEED_INIT;
+bool motorOn      = true;
+int  speedLevel   = SPEED_MIN;
 bool displayDirty = true;
 bool fullRedraw   = true;         // force complete screen repaint
 
 // ── Previous display state (for partial redraws) ───────────────
 int  prevSpeed    = -1;
 bool prevMotorOn  = false;
+
+// ── Demo mode ──────────────────────────────────────────────────
+bool     demoMode    = true;
+int8_t   demoDir     = 1;       // +1 going up, -1 going down
+uint32_t demoLastMs  = 0;
+constexpr uint32_t DEMO_INTERVAL_MS = 1000;
 
 // ── readButton: debounce + detect short/long press ─────────────
 BtnEvent readButton(Button &b) {
@@ -300,9 +306,24 @@ void setup() {
     Serial.printf("Ready — speed=%d motor=%s\n", speedLevel, motorOn ? "ON" : "OFF");
 }
 
+// ── demoTick: sweep speed up then down, once per second ────────
+void demoTick() {
+    if (!demoMode) return;
+    uint32_t now = millis();
+    if ((now - demoLastMs) < DEMO_INTERVAL_MS) return;
+    demoLastMs = now;
+
+    motorOn = true;
+    speedLevel += demoDir;
+    if (speedLevel >= SPEED_MAX) { speedLevel = SPEED_MAX; demoDir = -1; }
+    if (speedLevel <= SPEED_MIN) { speedLevel = SPEED_MIN; demoDir =  1; }
+    displayDirty = true;
+}
+
 // ── loop ───────────────────────────────────────────────────────
 void loop() {
     handleButtons();
+    demoTick();
     updatePWM();
     updateDisplay();
 }
