@@ -274,24 +274,22 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n== Belt Sander Controller ==");
 
+    // Backlight on before init (matches working reference — no GPIO 15)
+    pinMode(BACKLIGHT, OUTPUT);
+    digitalWrite(BACKLIGHT, HIGH);
+
+    // TFT init
+    tft.init();
+    tft.setRotation(0);   // portrait 170×320
+    tft.fillScreen(COL_BG);
+
     // Buttons
     pinMode(BTN_UP,   INPUT_PULLUP);
     pinMode(BTN_DOWN, INPUT_PULLUP);
 
-    // Display power
-    pinMode(LCD_POWER, OUTPUT);
-    digitalWrite(LCD_POWER, HIGH);
-    pinMode(BACKLIGHT, OUTPUT);
-    digitalWrite(BACKLIGHT, HIGH);
-
     // PWM output (ESP32 Arduino v3 API)
     ledcAttach(PWM_OUT, PWM_FREQ, PWM_RES);
     ledcWrite(PWM_OUT, 0);
-
-    // TFT
-    tft.init();
-    tft.setRotation(0);   // portrait 170×320
-    tft.fillScreen(COL_BG);
 
     drawSplash();
     drawMainScreen();
