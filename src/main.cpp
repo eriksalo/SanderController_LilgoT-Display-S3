@@ -22,6 +22,13 @@ constexpr int SPEED_INIT  = 5;
 constexpr uint32_t PWM_FREQ = 5000;   // 5 kHz
 constexpr uint8_t  PWM_RES  = 12;     // 12-bit → 0-4095
 
+// ── SFM calculation ────────────────────────────────────────────
+// Motor max 1750 RPM, 12" diameter roller
+// Circumference = π × 12 = 37.699"
+// Max SFM = 37.699 × 1750 / 12 = 5497 SFM
+constexpr int SFM_MIN = 550;    // speed 1
+constexpr int SFM_MAX = 5500;   // speed 10
+
 // ── Display geometry (170×320 portrait, rotation 0) ────────────
 constexpr int SCREEN_W = 170;
 constexpr int SCREEN_H = 320;
@@ -34,8 +41,8 @@ constexpr int BAR_BOTTOM = 298;              // y of bottom edge of segment 1
 constexpr int BAR_STEP   = BAR_H + BAR_GAP;  // vertical pitch
 
 constexpr int STATUS_Y   = 8;                // top status line y
-constexpr int SPEED_NUM_X = 70;              // large speed number x
-constexpr int SPEED_NUM_Y = 30;              // large speed number y
+constexpr int SFM_NUM_X  = 85;               // SFM number x (centered)
+constexpr int SFM_NUM_Y  = 30;               // SFM number y
 constexpr int BADGE_X    = 120;              // ON/OFF badge x
 constexpr int BADGE_Y    = 8;                // ON/OFF badge y
 constexpr int BADGE_W    = 44;
@@ -70,8 +77,8 @@ TFT_eSPI tft = TFT_eSPI();
 Button btnUp   { BTN_UP };
 Button btnDown { BTN_DOWN };
 
-bool motorOn      = true;
-int  speedLevel   = SPEED_MIN;
+bool motorOn      = false;
+int  speedLevel   = SPEED_INIT;
 bool displayDirty = true;
 bool fullRedraw   = true;         // force complete screen repaint
 
@@ -129,15 +136,27 @@ BtnEvent readButton(Button &b) {
 }
 
 // ── handleButtons: map events to state changes ─────────────────
+// Short press up/down: adjust speed (works whether motor on or off)
+// Long press up: turn motor ON at current speed
+// Long press down: turn motor OFF
 void handleButtons() {
     BtnEvent upEvt   = readButton(btnUp);
     BtnEvent downEvt = readButton(btnDown);
+
+    // Any button press exits demo mode
+    if (demoMode && (upEvt != BtnEvent::NONE || downEvt != BtnEvent::NONE)) {
+        demoMode = false;
+        motorOn = false;
+        speedLevel = SPEED_INIT;
+        displayDirty = true;
+        Serial.println("Demo mode OFF");
+    }
 
     if (upEvt == BtnEvent::LONG) {
         motorOn = true;
         displayDirty = true;
         Serial.println("BTN_UP long  → Motor ON");
-    } else if (upEvt == BtnEvent::SHORT && motorOn) {
+    } else if (upEvt == BtnEvent::SHORT) {
         if (speedLevel < SPEED_MAX) {
             speedLevel++;
             displayDirty = true;
@@ -149,7 +168,7 @@ void handleButtons() {
         motorOn = false;
         displayDirty = true;
         Serial.println("BTN_DOWN long → Motor OFF");
-    } else if (downEvt == BtnEvent::SHORT && motorOn) {
+    } else if (downEvt == BtnEvent::SHORT) {
         if (speedLevel > SPEED_MIN) {
             speedLevel--;
             displayDirty = true;
@@ -206,14 +225,19 @@ void drawOnOffIndicator() {
     }
 }
 
-// ── drawSpeedNumber: large speed digit in status area ──────────
-void drawSpeedNumber() {
+// ── getSFM: convert speed level to surface feet per minute ─────
+int getSFM() {
+    return map(speedLevel, SPEED_MIN, SPEED_MAX, SFM_MIN, SFM_MAX);
+}
+
+// ── drawSFMNumber: large SFM value in status area ──────────────
+void drawSFMNumber() {
     // Clear area behind number
-    tft.fillRect(SPEED_NUM_X - 20, SPEED_NUM_Y, 50, 30, COL_BG);
+    tft.fillRect(0, SFM_NUM_Y, SCREEN_W, 30, COL_BG);
     tft.setTextDatum(TC_DATUM);
     tft.setTextColor(COL_LABEL, COL_BG);
     tft.setTextSize(3);
-    tft.drawString(String(speedLevel), SPEED_NUM_X, SPEED_NUM_Y);
+    tft.drawString(String(getSFM()), SFM_NUM_X, SFM_NUM_Y);
 }
 
 // ── drawBarGraph: 10 horizontal segments, filled from bottom ───
@@ -237,13 +261,13 @@ void drawBarGraph() {
 void drawMainScreen() {
     tft.fillScreen(COL_BG);
 
-    // "SPEED" label
+    // "SFM" label
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(COL_LABEL, COL_BG);
     tft.setTextSize(2);
-    tft.drawString("SPD", 4, STATUS_Y);
+    tft.drawString("SFM", 4, STATUS_Y);
 
-    drawSpeedNumber();
+    drawSFMNumber();
     drawOnOffIndicator();
     drawBarGraph();
 
@@ -264,7 +288,7 @@ void updateDisplay() {
 
     // Partial updates
     if (speedLevel != prevSpeed) {
-        drawSpeedNumber();
+        drawSFMNumber();
         drawBarGraph();
         prevSpeed = speedLevel;
     }
