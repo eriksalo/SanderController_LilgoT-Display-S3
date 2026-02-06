@@ -87,7 +87,7 @@ int  prevSpeed    = -1;
 bool prevMotorOn  = false;
 
 // ── Demo mode ──────────────────────────────────────────────────
-bool     demoMode    = true;
+bool     demoMode    = false;
 int8_t   demoDir     = 1;       // +1 going up, -1 going down
 uint32_t demoLastMs  = 0;
 constexpr uint32_t DEMO_INTERVAL_MS = 1000;
